@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Title</title>
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <style>
+        svg {
+            border: solid 1px gray;
+        }
+        * {
+            font-family: sans-serif;
+        }
+        .bar {
+            fill: orange;
+        }
+        .label {
+            font-size: 9pt;
+        }
+        .category {
+            text-anchor: end;
+        }
+    </style>
+</head>
+<body onload='init()'>
+<h1><span id="chart">Average</span> Movies: Budget vs Gross</h1>
+<svg class="bar-chart"></svg>
+<form>
+    <button type="button" id="overview">Overview</button>
+    <button type="button" id="y2010">2010</button>
+    <button type="button" id="y2011">2011</button>
+    <button type="button" id="y2012">2012</button>
+    <button type="button" id="y2013">2013</button>
+    <button type="button" id="y2014">2014</button>
+    <button type="button" id="y2015">2015</button>
+    <button type="button" id="y2016">2016</button>
+</form>
+<script>
+async function init() {
+try {
+  let alldata = await d3.csv('data/mv02.csv', d => {
+    if ((+d.budget > 0) && (+d.gross > 0)) {
+      return {name: d.name, roi: +d.gross/+d.budget, released: d.released, genre: d.genre,  rating: d.rating, budget: +d.budget, gross: +d.gross, score: +d.score, year: +d.year,  star: d.star};
+    }
+  }); //csv
+  // Insert D3 code here
+  ydata = function(data, year) {
+  let ret = [];
+  data.forEach(function(d) {
+    if (d.year == year) {
+      ret.push(d);
+    }
+ });
+ return ret;
+}
+yeardata = function(alldata) {
+  let ret = [];
+  for (let i=0, j=2010; j < 2017; i++, j++) {
+    ret[i] = [];
+    ret[i] = ydata(alldata, j);
+  }
+  ret[7] = alldata;
+  return ret;
+}
+data = yeardata(alldata);
+{
+  let _maxvalue = function(data) {
+      let maxbudget = d3.max(data, function(d) {return d.budget});
+      let maxgross = d3.max(data, function(d) {return d.gross});
+      return {budget: maxbudget, gross: maxgross};
+  }
+  let maxvalue = _maxvalue(alldata);
+  //let maxvalue = _maxvalue(data[chart.current.index]);
+  let formatdollar = d3.format("~s");
+  let formatpercent = d3.format(".0%");
+  let maxdisplay = 20;
+
+  const charts = [
+    {key: "overview", title: "2010-2016", color: "blue", index: 7},
+    {key: "y2010", title: "2010", color: "orange", index: 0},
+    {key: "y2011", title: "2011", color: "blue", index: 1},
+    {key: "y2012", title: "2012", color: "red", index: 2},
+    {key: "y2013", title: "2013", color: "orange", index: 3},
+    {key: "y2014", title: "2014", color: "blue", index: 4},
+    {key: "y2015", title: "2015", color: "red", index: 5},
+    {key: "y2016", title: "2016", color: "red", index: 6}
+
+  ];
+
+  // data used for each chart
+  const chart = {
+        width: 0,
+        height: 0,          // the height is set after data is loaded
+        current: charts[0]  // chart to display first
+  }
+
+  // scale functions and formats
+  const barScale = d3.scaleLinear().range([0, 600]);
+  const colorScale = d3.scaleLinear().range([0, 1]);
+  const format = d3.format(".2f");
+  const animation = "Gold";
+  const action = "Red";
+  const comedy = "LightGreen";
+  const horror = "DarkGray";
+  const drama = "SkyBlue";
+
+  let tooltip = d3.select("body")
+      .append("div")
+      .style("position", "absolute")
+      .style("font-family", "'Open Sans', sans-serif")
+      .style("font-size", "12px")
+      .style("z-index", "10")
+      .style("visibility", "hidden")
+      .style("background-color", "lightgray")
+      .style("padding", "5px");
+
+  // the container SVG
+  let w = 860;
+  let h = 400;
+  let margin = {top: 10, right: 30, bottom: 30, left: 60},
+  width = w - margin.left - margin.right,
+  height = h - margin.top - margin.bottom;
+  let svg = d3.select("svg.bar-chart")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform",
+                  "translate(" + margin.left + "," + margin.top + ")")
+
+  function genre(d) {
+
+   if (d.genre == "Animation") {
+     return animation;
+   }
+   else if ((d.genre == "Action") ||
+       (d.genre == "Adventure") ||
+       (d.genre == "Sci-Fi") ||
+       (d.genre == "Thriller")
+       ){
+     return action;
+   }
+   else if (d.genre == "Comedy") {
+     return comedy;
+   }
+   else if (d.genre == "Horror") {
+     return horror;
+   }
+   else if ((d.genre == "Drama") ||
+       (d.genre == "Crime") ||
+       (d.genre == "Biography") ||
+       (d.genre == "Fantasy") ||
+       (d.genre == "Mystery") ||
+       (d.genre == "Romance") ||
+       (d.genre == "Western")
+       ){
+     return drama;
+   }
+
+   return drama
+    /* https://css-tricks.com/snippets/css/named-colors-and-hex-equivalents/
+    */
+  }
+
+  d3.selectAll("button")
+    .on("click", function() {
+        chart.current = charts.filter(c => c.key == this.id)[0]; // the button's ID
+        draw();
+    });
+  //initial draw (default - overview)
+  draw();
+
+
+
+  function draw() {
+    maxvalue = _maxvalue(data[chart.current.index]);
+    svg.remove();
+    svg = d3.select("svg.bar-chart")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform",
+              "translate(" + margin.left + "," + margin.top + ")");
+    setupView();
+
+     let x = d3.scaleLinear()
+            .domain([0, 0])
+            .range([ 0, width ]);
+     svg.append("g")
+            .attr("class", "myXaxis")   // Note that here we give a class to the X axis, to be able to call it later and modify it
+            .attr("transform", "translate(0," + height + ")")
+            .call(d3.axisBottom(x).tickFormat(formatdollar))
+            .attr("opacity", "0")
+
+    // Add Y axis
+    let y = d3.scaleLinear()
+            .domain([0, maxvalue.gross])
+            .range([ height, 0 ]);
+     svg.append("g")
+            .attr("class", "myYaxis")   // Note that here we give a class to the X axis, to be able to call it later and modify it
+            //.attr("transform", "translate(0," + height + ")")
+            .call(d3.axisLeft(y).tickFormat(formatdollar))
+            .attr("opacity", "0")
+    /*
+    let y = d3.scaleLinear()
+            .domain([0, maxvalue.gross])
+            .range([ height, 0]);
+    svg.append("g")
+            .call(d3.axisLeft(y).tickFormat(formatdollar));
+*/
+      // Add dots
+    svg.append('g')
+          .selectAll("dot")
+          .data(data[chart.current.index])
+          .enter()
+          .append("circle")
+          .attr("cx", function(d) { return x(0); } )
+          .attr("cy", function(d) { return y(0); } )
+          .attr("r", 3.5)
+          .style("fill", function(d) {return genre(d);})
+          .style("stroke", "black")
+          .on("mouseover", d => tooltip.style("visibility", "visible")
+                                .text(d.name + ": " + "(ROI=" + formatpercent(d.roi) + ")"))
+			    .on("mousemove", d => tooltip.style("top", (d3.event.pageY-10)+"px")
+                                .style("left", (d3.event.pageX+10)+"px")
+                                .text(d.name + ": " + "(ROI=" + formatpercent(d.roi) + ")"))
+			    .on("mouseout", d => tooltip.style("visibility", "hidden"));
+
+    // new X axis
+    x.domain([0, maxvalue.budget])
+    svg.select(".myXaxis")
+          .transition()
+          .duration(2000)
+          .attr("opacity", "1")
+          .call(d3.axisBottom(x).tickFormat(formatdollar));
+
+    // new Y axis
+    y.domain([0, maxvalue.gross])
+    svg.select(".myYaxis")
+          .transition()
+          .duration(2000)
+          .attr("opacity", "1")
+          .call(d3.axisLeft(y).tickFormat(formatdollar));
+
+    svg.selectAll("circle")
+          .transition()
+          .delay(function(d,i){return(i*3)})
+          .duration(2000)
+          .attr("cx", function (d) { return x(d.budget); } )
+          .attr("cy", function (d) { return y(d.gross); } )
+
+  }
+
+  function setupView() {
+      d3.selectAll("button")
+          .property("disabled", false);
+        // enable only buttons that are not current chart
+        d3.select("#" + chart.current.key)
+          .property("disabled", true);
+
+        // update page title
+        d3.select("#chart")
+          .text(chart.current.title);
+
+        // update scale domain with current data
+        //const maxValue = maxvalues.budget; //d3.max(planets, d => d[chart.current.key]);
+        //barScale.domain([0, maxValue]);
+        //colorScale.domain([0, maxValue]);
+  }
+
+}
+} //try
+catch(e) {
+    console.log('Error reading csv file: ', e);
+} //catch
+} //async
+</script>
+</body>
+</html>
